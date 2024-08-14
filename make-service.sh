@@ -1,32 +1,65 @@
 #!/bin/bash  
   
-# 提示用户输入服务名称和要自启动的文件的绝对路径  
-read -p "请输入服务的名称: " SERVICE_NAME  
-read -p "请输入要自启动的文件的绝对路径: " EXEC_PATH  
+# 检查系统是否使用systemd  
+if ! command -v systemctl &> /dev/null  
+then  
+    echo "错误：系统未使用systemd作为服务管理器！"  
+    exit 1  
+fi  
   
-# 定义模板文件的路径（这里假设它与脚本在同一目录下）  
-TEMPLATE_FILE="template.service"  
+# 读取用户输入  
+read -p "请输入服务名称: " service_name  
+read -p "请输入要执行的脚本文件的绝对路径: " exec_path  
   
-# 创建一个临时文件来保存修改后的服务单元内容  
-TEMP_FILE=$(mktemp)  
+# 验证输入的exec_path是否是一个存在的文件  
+if [ ! -f "$exec_path" ]; then  
+    echo "错误：指定的文件不存在！"  
+    exit 1  
+fi  
   
-# 读取模板文件，将ExecStart的值替换为用户输入的值，然后写入临时文件  
-cat "$TEMPLATE_FILE" | sed "s|/usr/bin/openttyTHS1.sh|$EXEC_PATH|g" > "$TEMP_FILE"  
+# systemd service文件模板  
+service_template="  
+[Unit]  
+Description=JetBot start service  
+After=multi-user.target  
   
-# 将临时文件的内容写入以用户输入的服务名称命名的服务单元文件  
-SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"  
-sudo cp "$TEMP_FILE" "$SERVICE_FILE"  
+[Service]  
+Type=oneshot  
+User=root  
+ExecStart=$exec_path  
+WorkingDirectory=$(dirname $exec_path)  
   
-# 清理临时文件  
-rm "$TEMP_FILE"  
+[Install]  
+WantedBy=multi-user.target  
+"  
   
-# 重新加载systemd，以识别新的或更改的服务单元文件  
-echo "正在重新加载systemd配置..."  
+# systemd service文件存放路径（通常是固定的）  
+systemd_service_dir="/etc/systemd/system/"  
+  
+# 确保systemd service文件存放目录存在  
+if [ ! -d "$systemd_service_dir" ]; then  
+    echo "错误：systemd的service文件存放目录不存在！"  
+    exit 1  
+fi  
+  
+# 写入service文件  
+service_file="$systemd_service_dir/${service_name}.service"  
+echo "$service_template" > "$service_file"  
+  
+# 验证service文件是否成功创建  
+if [ ! -f "$service_file" ]; then  
+    echo "错误：无法创建service文件！"  
+    exit 1  
+fi  
+  
+# 重新加载systemd守护进程，使其识别新的或更改的unit文件  
 sudo systemctl daemon-reload  
   
-# 可选：启用并启动服务  
-echo "服务单元文件已创建，正在尝试启用并启动服务..."  
-sudo systemctl enable "${SERVICE_NAME}.service"  
-sudo systemctl start "${SERVICE_NAME}.service"  
+# 启用并启动服务  
+sudo systemctl enable "$service_file"  
+sudo systemctl start "$service_file"  
   
-echo "服务'${SERVICE_NAME}.service'已启用并启动。"
+# 检查服务状态  
+sudo systemctl status "$service_file"  
+  
+echo "服务 $service_name 已创建、启用并启动。"
