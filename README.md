@@ -1,5 +1,4 @@
 # bkackq-Create-a-self-starting-service
-为自定义程序或脚本创建开机自启动服务
+某些使用systemd的linux系统，为自定义文件或脚本程序创建开机自启动服务。
 
-
-Create a boot auto-start service for custom programs or scripts
+Some Linux systems that use systemd create boot auto-start services for custom files or scripts.
